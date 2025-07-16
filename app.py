@@ -15,7 +15,7 @@ if "messages" not in st.session_state:
 
 # AI Chat Function
 def ask_healthbot(user_input, token):
-    API_URL = "https://api-inference.huggingface.co/models/microsoft/phi-2"
+    API_URL = "https://api-inference.huggingface.co/models/google/flan-t5-small"
     headers = {"Authorization": f"Bearer {token}"}
 
     prompt = f"""
