@@ -17,24 +17,8 @@ if 'chat_history' not in st.session_state:
     st.session_state.chat_history = []
 if 'user_profile' not in st.session_state:
     st.session_state.user_profile = {}
-
-# Sidebar for user profile
-with st.sidebar:
-    st.header("👤 User Profile")
-    
-    age = st.selectbox("Age Group", ["Select", "0-12", "13-17", "18-30", "31-50", "51-65", "65+"], key="age_select")
-    gender = st.selectbox("Gender", ["Select", "Male", "Female", "Other", "Prefer not to say"], key="gender_select")
-    location = st.selectbox("Location Type", ["Select", "Urban", "Rural", "Semi-urban"], key="location_select")
-    language = st.selectbox("Preferred Language", ["English", "Hindi", "Spanish", "French", "Arabic"], key="language_select")
-    
-    if st.button("Save Profile", key="save_profile"):
-        st.session_state.user_profile = {
-            'age': age,
-            'gender': gender,
-            'location': location,
-            'language': language
-        }
-        st.success("Profile saved!")
+if 'show_assessment' not in st.session_state:
+    st.session_state.show_assessment = False
 
 # Emergency check function
 def check_emergency_symptoms(main_symptom, other_symptoms, severity, current_condition):
@@ -105,72 +89,96 @@ def generate_health_advice(main_symptom, other_symptoms, duration, severity, med
         'advice': advice
     }
 
-# Main health assessment
-st.subheader("🔍 Health Assessment")
-
-# Create two columns for better layout
+# User profile section
+st.subheader("👤 User Profile (Optional)")
 col1, col2 = st.columns(2)
 
 with col1:
-    main_symptom = st.text_area("What is your main symptom or concern?", height=100, key="main_symptom")
-    duration = st.selectbox("How long have you had this symptom?", 
-                           ["Select", "Less than 1 day", "1-3 days", "4-7 days", "1-2 weeks", "More than 2 weeks"], 
-                           key="duration")
-    severity = st.slider("Rate the severity (1-10)", 1, 10, 5, key="severity")
+    user_age = st.selectbox("Age Group", ["Select", "0-12", "13-17", "18-30", "31-50", "51-65", "65+"])
+    user_gender = st.selectbox("Gender", ["Select", "Male", "Female", "Other", "Prefer not to say"])
 
 with col2:
-    other_symptoms = st.multiselect("Any other symptoms?", 
-                                  ["Fever", "Headache", "Nausea", "Fatigue", "Cough", "Shortness of breath", 
-                                   "Chest pain", "Abdominal pain", "Dizziness", "Skin rash"], 
-                                  key="other_symptoms")
-    medical_history = st.text_area("Any relevant medical history?", height=60, key="medical_history")
-    medications = st.text_area("Current medications?", height=60, key="medications")
-
-current_condition = st.text_area("Describe your current condition in detail:", height=100, key="current_condition")
-
-# Get health guidance button
-if st.button("🔍 Get Health Guidance", type="primary", key="get_guidance"):
-    if main_symptom and duration != "Select":
-        with st.spinner("🤖 Analyzing your symptoms..."):
-            advice_result = generate_health_advice(main_symptom, other_symptoms, duration, severity, medical_history, medications, current_condition)
-            
-            if advice_result['type'] == 'emergency':
-                st.error(advice_result['advice'])
-            else:
-                st.success("🩺 Health Guidance:")
-                for advice_item in advice_result['advice']:
-                    st.write(f"• {advice_item}")
-                
-                st.info("📞 When to seek professional help:")
-                st.write("• If symptoms worsen or don't improve in 2-3 days")
-                st.write("• If you develop new concerning symptoms")
-                st.write("• If you're unsure about your condition")
-                st.write("• If you have underlying health conditions")
-            
-            # Track usage
-            st.session_state.chat_history.append({
-                'timestamp': time.time(),
-                'symptoms': main_symptom,
-                'advice_type': advice_result['type']
-            })
-    else:
-        st.error("Please fill in at least the main symptom and duration.")
+    user_location = st.selectbox("Location Type", ["Select", "Urban", "Rural", "Semi-urban"])
+    user_language = st.selectbox("Preferred Language", ["English", "Hindi", "Spanish", "French", "Arabic"])
 
 # Quick symptom checker
 st.subheader("🚀 Quick Symptom Checker")
 col1, col2, col3 = st.columns(3)
 
 with col1:
-    if st.button("🤒 Cold/Flu Symptoms", key="cold_flu"):
-        st.info("Rest, fluids, and monitor temperature. See a doctor if symptoms worsen or last >10 days.")
+    if st.button("🤒 Cold/Flu Symptoms"):
+        st.info("**Home Care:** Rest, fluids, and monitor temperature. See a doctor if symptoms worsen or last >10 days.")
 
 with col2:
-    if st.button("🤕 Minor Injury", key="minor_injury"):
-        st.info("Clean wound, apply bandage. For serious cuts or persistent pain, seek medical care.")
+    if st.button("🤕 Minor Injury"):
+        st.info("**Home Care:** Clean wound, apply bandage. For serious cuts or persistent pain, seek medical care.")
 
 with col3:
-    if st.button("😰 Stress/Anxiety", key="stress_anxiety"):
-        st.info("Try deep breathing, exercise, or meditation. Consider professional help if persistent.")
+    if st.button("😰 Stress/Anxiety"):
+        st.info("**Home Care:** Try deep breathing, exercise, or meditation. Consider professional help if persistent.")
+
+# Start detailed assessment button
+if st.button("🔍 Start Detailed Health Assessment", type="primary"):
+    st.session_state.show_assessment = True
+
+# Detailed health assessment
+if st.session_state.show_assessment:
+    st.subheader("🔍 Detailed Health Assessment")
+    
+    with st.form("health_assessment_form"):
+        # Main symptom
+        main_symptom = st.text_input("What is your main symptom or concern?", placeholder="e.g., headache, fever, cough")
+        
+        # Duration
+        duration = st.selectbox("How long have you had this symptom?", 
+                               ["Select", "Less than 1 day", "1-3 days", "4-7 days", "1-2 weeks", "More than 2 weeks"])
+        
+        # Severity
+        severity = st.slider("Rate the severity (1-10)", 1, 10, 5)
+        
+        # Other symptoms
+        other_symptoms = st.multiselect("Any other symptoms?", 
+                                      ["Fever", "Headache", "Nausea", "Fatigue", "Cough", "Shortness of breath", 
+                                       "Chest pain", "Abdominal pain", "Dizziness", "Skin rash"])
+        
+        # Medical history
+        medical_history = st.text_input("Any relevant medical history?", placeholder="e.g., diabetes, hypertension")
+        
+        # Current medications
+        medications = st.text_input("Current medications?", placeholder="e.g., aspirin, insulin")
+        
+        # Current condition description
+        current_condition = st.text_input("Describe your current condition in detail:", placeholder="Describe how you're feeling now")
+        
+        # Submit button
+        submitted = st.form_submit_button("Get Health Guidance")
+        
+        if submitted:
+            if main_symptom and duration != "Select":
+                with st.spinner("🤖 Analyzing your symptoms..."):
+                    advice_result = generate_health_advice(main_symptom, other_symptoms, duration, severity, medical_history, medications, current_condition)
+                    
+                    if advice_result['type'] == 'emergency':
+                        st.error(advice_result['advice'])
+                    else:
+                        st.success("🩺 Health Guidance:")
+                        for advice_item in advice_result['advice']:
+                            st.write(f"• {advice_item}")
+                        
+                        st.info("📞 When to seek professional help:")
+                        st.write("• If symptoms worsen or don't improve in 2-3 days")
+                        st.write("• If you develop new concerning symptoms")
+                        st.write("• If you're unsure about your condition")
+                        st.write("• If you have underlying health conditions")
+                    
+                    # Track usage
+                    st.session_state.chat_history.append({
+                        'timestamp': time.time(),
+                        'symptoms': main_symptom,
+                        'advice_type': advice_result['type']
+                    })
+            else:
+                st.error("Please fill in at least the main symptom and duration.")
 
 # Common conditions and advice
 st.subheader("📋 Common Health Conditions")
@@ -192,12 +200,13 @@ with st.expander("😷 Cough"):
     st.write("**Home care:** Honey, warm liquids, humidifier, avoid irritants")
     st.write("**See doctor if:** Blood in cough, persistent >3 weeks, with fever")
 
-# Statistics in sidebar
-if st.sidebar.button("📊 Usage Statistics", key="stats"):
-    st.sidebar.write(f"Total consultations: {len(st.session_state.chat_history)}")
-    if st.session_state.user_profile:
-        st.sidebar.write(f"User location: {st.session_state.user_profile.get('location', 'Not specified')}")
-        st.sidebar.write(f"User age: {st.session_state.user_profile.get('age', 'Not specified')}")
+with st.expander("🤢 Nausea/Vomiting"):
+    st.write("**Home care:** BRAT diet (bananas, rice, applesauce, toast), small sips of water")
+    st.write("**See doctor if:** Severe dehydration, blood in vomit, persistent >24 hours")
+
+with st.expander("😴 Fatigue"):
+    st.write("**Home care:** Adequate sleep, balanced diet, regular exercise, stress management")
+    st.write("**See doctor if:** Persistent despite rest, accompanied by other symptoms")
 
 # Emergency contacts
 st.subheader("🚨 Emergency Contacts")
@@ -205,6 +214,15 @@ st.write("🇮🇳 India: 102 (Medical Emergency)")
 st.write("🇺🇸 USA: 911")
 st.write("🇬🇧 UK: 999")
 st.write("🌍 International: Check your local emergency number")
+
+# Statistics
+st.subheader("📊 Usage Statistics")
+if st.button("View Statistics"):
+    st.write(f"Total consultations today: {len(st.session_state.chat_history)}")
+    if user_location != "Select":
+        st.write(f"User location: {user_location}")
+    if user_age != "Select":
+        st.write(f"User age group: {user_age}")
 
 # Footer
 st.markdown("---")
@@ -214,9 +232,12 @@ st.write("For emergency situations, always call your local emergency number")
 
 # Feedback section
 st.subheader("📝 Feedback")
-feedback = st.text_area("How was your experience? Any suggestions?", key="feedback")
-if st.button("Submit Feedback", key="submit_feedback"):
-    if feedback:
-        st.success("Thank you for your feedback!")
-    else:
-        st.error("Please enter your feedback before submitting.")
+with st.form("feedback_form"):
+    feedback_text = st.text_input("How was your experience? Any suggestions?")
+    feedback_submitted = st.form_submit_button("Submit Feedback")
+    
+    if feedback_submitted:
+        if feedback_text:
+            st.success("Thank you for your feedback!")
+        else:
+            st.error("Please enter your feedback before submitting.")
