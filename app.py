@@ -1,49 +1,37 @@
 import streamlit as st
 import requests
 
-#  Supported public model on Hugging Face
+# ✅ Public API-compatible model
 API_URL = "https://api-inference.huggingface.co/models/google/flan-t5-small"
 
-st.set_page_config(page_title="🩺 AI Health Chatbot")
-st.title("🩺 AI Health Chatbot (Fast, Lightweight)")
+st.set_page_config(page_title="🩺 AI Health Chatbot", layout="centered")
+st.title("🩺 AI Health Chatbot (FAST + FREE)")
 
-st.markdown("Enter your Hugging Face API token (with inference permission) to start using the bot.")
+# Token input
+hf_token = st.text_input("🔐 Enter your Hugging Face Token (with inference access)", type="password")
 
-#  Ask user for HF Token
-hf_token = st.text_input("Enter your Hugging Face Token", type="password")
-
-# Store conversation history
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-
-# Chat function
-def ask_healthbot(user_input, token):
+def ask_bot(symptoms, token):
     headers = {"Authorization": f"Bearer {token}"}
-    prompt = f"Give basic health advice for the following symptoms:\n{user_input}"
+    prompt = f"Give basic health advice for the following symptoms:\n{symptoms}"
+    res = requests.post(API_URL, headers=headers, json={"inputs": prompt})
 
-    response = requests.post(API_URL, headers=headers, json={"inputs": prompt})
-    if response.status_code == 200:
-        output = response.json()
-        return output[0]["generated_text"]
-    elif response.status_code == 403:
-        return "❌ Invalid or unauthorized token. Please check your Hugging Face token."
-    elif response.status_code == 404:
-        return "❌ Model not found. Please verify the model URL or try a supported model."
-    else:
-        return f"⚠️ Error: {response.status_code} - {response.text}"
+    try:
+        if res.status_code == 200:
+            return res.json()[0]['generated_text']
+        elif res.status_code == 403:
+            return "❌ Invalid or unauthorized token. Please check your Hugging Face token."
+        elif res.status_code == 404:
+            return "❌ Model not found. Try another model (e.g., google/flan-t5-small)."
+        else:
+            return f"⚠️ Error {res.status_code}: {res.text}"
+    except Exception as e:
+        return f"💥 Unexpected error: {e}"
 
-# UI flow
 if hf_token:
-    user_input = st.chat_input("Describe your symptoms here...")
-
+    user_input = st.chat_input("Describe your symptoms...")
     if user_input:
-        st.session_state.messages.append({"role": "user", "content": user_input})
-        st.chat_message("user").markdown(user_input)
-
-        with st.spinner("Asking the health AI..."):
-            reply = ask_healthbot(user_input, hf_token)
-
-        st.session_state.messages.append({"role": "assistant", "content": reply})
-        st.chat_message("assistant").markdown(reply)
+        with st.spinner("🤖 Generating advice..."):
+            output = ask_bot(user_input, hf_token)
+        st.markdown(f"**🩺 AI Response:** {output}")
 else:
-    st.warning("Please enter your Hugging Face token to begin.")
+    st.info("Please enter your Hugging Face token above to use the AI.")
