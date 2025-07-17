@@ -38,7 +38,12 @@ def get_ai_health_advice(symptoms, severity, duration):
     
     try:
         # Create health-focused prompt
-        prompt = f"Health advice for {symptoms} (severity: {severity}/10, duration: {duration}): "
+        prompt = f"""
+        
+        Please provide general health advice, potential home remedies, and when to seek medical attention.
+        Health advice for {symptoms} (severity: {severity}/10, duration: {duration}): 
+        
+        """
         
         # Generate AI response
         response = ai_model(prompt, max_length=100, num_return_sequences=1)
