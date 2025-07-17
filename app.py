@@ -32,56 +32,171 @@ def load_health_ai():
 # Load AI model
 ai_model = load_health_ai()
 
+# Medical knowledge base for specific conditions
+MEDICAL_CONDITIONS = {
+    'headache': {
+        'causes': ['tension', 'dehydration', 'stress', 'lack of sleep', 'eye strain'],
+        'treatments': ['rest in dark room', 'cold compress on forehead', 'gentle neck massage', 'stay hydrated'],
+        'when_to_seek_help': 'sudden severe headache, headache with fever, vision changes'
+    },
+    'fever': {
+        'causes': ['infection', 'inflammation', 'heat exhaustion', 'medication reaction'],
+        'treatments': ['paracetamol/acetaminophen', 'cool compress', 'light clothing', 'plenty of fluids'],
+        'when_to_seek_help': 'fever above 103°F (39.4°C), persistent fever over 3 days'
+    },
+    'cough': {
+        'causes': ['cold', 'flu', 'allergies', 'throat irritation', 'acid reflux'],
+        'treatments': ['honey (if over 1 year)', 'warm tea', 'steam inhalation', 'throat lozenges'],
+        'when_to_seek_help': 'blood in cough, persistent cough over 3 weeks, difficulty breathing'
+    },
+    'nausea': {
+        'causes': ['food poisoning', 'motion sickness', 'pregnancy', 'medication side effects'],
+        'treatments': ['ginger tea', 'BRAT diet', 'small frequent meals', 'avoid strong odors'],
+        'when_to_seek_help': 'severe dehydration, blood in vomit, persistent vomiting'
+    },
+    'stomach pain': {
+        'causes': ['indigestion', 'gas', 'food poisoning', 'stress', 'menstrual cramps'],
+        'treatments': ['heat pad', 'gentle movement', 'bland foods', 'avoid trigger foods'],
+        'when_to_seek_help': 'severe abdominal pain, pain with fever, persistent pain'
+    },
+    'fatigue': {
+        'causes': ['lack of sleep', 'stress', 'poor nutrition', 'dehydration', 'underlying conditions'],
+        'treatments': ['adequate sleep 7-9 hours', 'balanced nutrition', 'regular exercise', 'stress management'],
+        'when_to_seek_help': 'persistent fatigue despite rest, fatigue with other symptoms'
+    },
+    'sore throat': {
+        'causes': ['viral infection', 'bacterial infection', 'allergies', 'dry air'],
+        'treatments': ['warm salt water gargle', 'throat lozenges', 'honey', 'humidifier'],
+        'when_to_seek_help': 'severe throat pain, difficulty swallowing, fever with sore throat'
+    },
+    'dizziness': {
+        'causes': ['dehydration', 'low blood sugar', 'inner ear problems', 'medication effects'],
+        'treatments': ['sit or lie down', 'stay hydrated', 'avoid sudden movements', 'adequate nutrition'],
+        'when_to_seek_help': 'dizziness with chest pain, severe dizziness, dizziness with fainting'
+    }
+}
+
+def identify_condition(symptoms_text):
+    """Identify the most likely condition from symptoms"""
+    symptoms_lower = symptoms_text.lower()
+    
+    # Check for specific conditions
+    for condition, info in MEDICAL_CONDITIONS.items():
+        if condition in symptoms_lower:
+            return condition
+    
+    # Check for related terms
+    if any(term in symptoms_lower for term in ['head', 'migraine']):
+        return 'headache'
+    elif any(term in symptoms_lower for term in ['temperature', 'hot', 'chills']):
+        return 'fever'
+    elif any(term in symptoms_lower for term in ['throat', 'swallow']):
+        return 'sore throat'
+    elif any(term in symptoms_lower for term in ['stomach', 'belly', 'abdominal']):
+        return 'stomach pain'
+    elif any(term in symptoms_lower for term in ['tired', 'exhausted', 'weak']):
+        return 'fatigue'
+    elif any(term in symptoms_lower for term in ['dizzy', 'lightheaded', 'vertigo']):
+        return 'dizziness'
+    elif any(term in symptoms_lower for term in ['vomit', 'sick', 'queasy']):
+        return 'nausea'
+    
+    return None
+
 def get_ai_health_advice(symptoms, severity, duration):
-    """Generate AI health advice"""
+    """Generate AI health advice with condition-specific knowledge"""
     if ai_model is None:
         return "AI model not available. Please try again later."
     
+    # Identify specific condition
+    condition = identify_condition(symptoms)
+    
     try:
-        # Create comprehensive health-focused prompt
-        prompt = f"""As a health assistant, I need to provide professional medical guidance for your symptoms.
-You have {symptoms} with severity level {severity} out of 10, lasting for {duration}.
-Based on this information, here is my professional medical advice:
+        if condition and condition in MEDICAL_CONDITIONS:
+            # Create condition-specific prompt
+            condition_info = MEDICAL_CONDITIONS[condition]
+            prompt = f"""Medical Case: Patient presents with {symptoms} (severity: {severity}/10, duration: {duration})
+Condition Analysis: This appears to be {condition}
+Common causes: {', '.join(condition_info['causes'])}
+Recommended treatments: {', '.join(condition_info['treatments'])}
 
-1. Immediate care recommendations:"""
+Professional medical advice:"""
+            
+        else:
+            # General prompt for unknown conditions
+            prompt = f"""Medical Case: Patient presents with {symptoms} (severity: {severity}/10, duration: {duration})
+As a healthcare professional, I need to provide specific guidance for these symptoms.
+Based on the symptom presentation and severity level, here is my clinical recommendation:"""
         
         # Generate AI response
         response = ai_model(
             prompt, 
-            max_length=len(prompt.split()) + 80,
+            max_length=len(prompt.split()) + 70,
             num_return_sequences=1,
-            temperature=0.8,
+            temperature=0.7,
             do_sample=True,
-            top_p=0.9,
-            repetition_penalty=1.2
+            top_p=0.8,
+            repetition_penalty=1.3
         )
         
         # Extract generated text
         full_response = response[0]['generated_text']
         ai_advice = full_response.replace(prompt, "").strip()
         
-        # If response is empty or too short, provide fallback
-        if not ai_advice or len(ai_advice) < 10:
-            ai_advice = f"""For {symptoms} with severity {severity}/10:
-• Rest and avoid strenuous activities
-• Stay hydrated with water and clear fluids
-• Monitor your symptoms closely
-• Consider over-the-counter pain relief if appropriate"""
+        # If response is empty or too short, use condition-specific fallback
+        if not ai_advice or len(ai_advice) < 15:
+            if condition and condition in MEDICAL_CONDITIONS:
+                condition_info = MEDICAL_CONDITIONS[condition]
+                ai_advice = f"""For {condition} with severity {severity}/10:
+
+**Likely causes:** {', '.join(condition_info['causes'])}
+
+**Recommended treatments:**
+• {condition_info['treatments'][0].title()}
+• {condition_info['treatments'][1].title()}
+• {condition_info['treatments'][2].title()}
+
+**Seek immediate medical attention if:** {condition_info['when_to_seek_help']}"""
+            else:
+                ai_advice = f"""For {symptoms} with severity {severity}/10:
+• Monitor symptoms closely and track any changes
+• Apply appropriate supportive care measures
+• Maintain hydration and adequate rest
+• Consider over-the-counter relief if suitable"""
         
-        # Add safety disclaimer
-        ai_advice += "\n\n⚠️ This is AI-generated guidance. Always consult a healthcare professional for proper diagnosis and treatment."
+        # Add condition-specific warning if applicable
+        if condition and condition in MEDICAL_CONDITIONS:
+            ai_advice += f"\n\n⚠️ **Important:** Seek medical attention if you experience: {MEDICAL_CONDITIONS[condition]['when_to_seek_help']}"
+        
+        ai_advice += "\n\n🩺 **Disclaimer:** This is AI-generated guidance based on symptom analysis. Always consult a healthcare professional for proper diagnosis and treatment."
         
         return ai_advice
     
     except Exception as e:
-        # Fallback response
-        return f"""For {symptoms} with severity {severity}/10:
-• Rest and avoid strenuous activities
-• Stay hydrated with plenty of fluids
-• Monitor your symptoms for changes
-• Seek medical attention if symptoms worsen
+        # Enhanced fallback with condition-specific advice
+        if condition and condition in MEDICAL_CONDITIONS:
+            condition_info = MEDICAL_CONDITIONS[condition]
+            return f"""**{condition.title()} Management (Severity: {severity}/10):**
 
-⚠️ This is general guidance. Please consult a healthcare professional for proper medical advice."""
+**Immediate care:**
+• {condition_info['treatments'][0].title()}
+• {condition_info['treatments'][1].title()}
+
+**Additional measures:**
+• {condition_info['treatments'][2].title()}
+• Monitor for improvement over 24-48 hours
+
+**Seek medical help if:** {condition_info['when_to_seek_help']}
+
+🩺 **Note:** This is general guidance. Consult a healthcare professional for proper evaluation."""
+        else:
+            return f"""**Symptom Management for {symptoms}:**
+• Apply appropriate supportive care
+• Monitor symptom progression
+• Maintain hydration and rest
+• Seek professional medical advice if symptoms persist or worsen
+
+🩺 **Important:** Always consult a healthcare professional for proper diagnosis and treatment."""
 
 st.title("🩺 AI Health Assistant")
 st.write("Free, accessible health guidance powered by AI")
@@ -189,52 +304,91 @@ with col3:
 
 # AI Chat Interface
 st.subheader("💬 Chat with AI Health Assistant")
-chat_input = st.text_input("Ask about your health concerns:", placeholder="e.g., I have a headache and feel tired")
+chat_input = st.text_input("Ask about your health concerns:", placeholder="e.g., I have a severe headache and feel nauseous")
 
 if st.button("💭 Get AI Response") and chat_input:
     if ai_model is not None:
-        with st.spinner("🤖 AI is analyzing your symptoms..."):
-            # Create a better prompt for chat
-            chat_prompt = f"""Patient says: "{chat_input}"
-As a medical assistant, I should provide helpful guidance.
-Here's my professional medical advice:
-
-For your symptoms, I recommend:"""
+        with st.spinner("🤖 AI is analyzing your specific symptoms..."):
+            # Identify condition for better response
+            condition = identify_condition(chat_input)
             
             try:
+                if condition and condition in MEDICAL_CONDITIONS:
+                    condition_info = MEDICAL_CONDITIONS[condition]
+                    chat_prompt = f"""Patient presents with: "{chat_input}"
+Clinical assessment: This appears to be {condition}
+Known causes: {', '.join(condition_info['causes'])}
+Standard treatments: {', '.join(condition_info['treatments'])}
+
+Professional medical guidance:"""
+                else:
+                    chat_prompt = f"""Patient concern: "{chat_input}"
+As a medical professional, I need to provide specific guidance for this presentation.
+Clinical assessment and recommendations:"""
+                
                 response = ai_model(
                     chat_prompt, 
                     max_length=len(chat_prompt.split()) + 60,
                     num_return_sequences=1,
-                    temperature=0.8,
+                    temperature=0.7,
                     do_sample=True,
-                    top_p=0.9,
-                    repetition_penalty=1.2
+                    top_p=0.8,
+                    repetition_penalty=1.3
                 )
                 
                 ai_response = response[0]['generated_text'].replace(chat_prompt, "").strip()
                 
-                # Fallback if empty response
-                if not ai_response or len(ai_response) < 10:
-                    ai_response = f"""Based on your concern about "{chat_input}":
-• Monitor your symptoms closely
-• Rest and stay hydrated
-• Consider basic self-care measures
-• Seek medical attention if symptoms persist or worsen"""
+                # Enhanced fallback with condition-specific advice
+                if not ai_response or len(ai_response) < 15:
+                    if condition and condition in MEDICAL_CONDITIONS:
+                        condition_info = MEDICAL_CONDITIONS[condition]
+                        ai_response = f"""**{condition.title()} Assessment:**
+
+**What you can do now:**
+• {condition_info['treatments'][0].title()}
+• {condition_info['treatments'][1].title()}
+• {condition_info['treatments'][2].title()}
+
+**When to seek immediate help:** {condition_info['when_to_seek_help']}"""
+                    else:
+                        ai_response = f"""**For your concern:** "{chat_input}"
+• Apply appropriate supportive care measures
+• Monitor your symptoms for any changes
+• Consider basic comfort measures
+• Seek professional evaluation if symptoms persist"""
                 
-                st.write("**AI Health Assistant:**")
+                st.write("**🩺 AI Health Assistant:**")
                 st.write(ai_response)
-                st.write("\n⚠️ This is AI-generated guidance. Always consult a healthcare professional for proper diagnosis and treatment.")
+                
+                # Add condition-specific warning
+                if condition and condition in MEDICAL_CONDITIONS:
+                    st.warning(f"⚠️ **Seek immediate medical attention if:** {MEDICAL_CONDITIONS[condition]['when_to_seek_help']}")
+                
+                st.info("🩺 **Medical Disclaimer:** This is AI-generated guidance based on symptom analysis. Always consult a healthcare professional for proper diagnosis and treatment.")
                 
             except Exception as e:
-                st.write("**AI Health Assistant:**")
-                st.write(f"""For your concern about "{chat_input}":
-• Rest and monitor your symptoms
-• Stay hydrated and maintain good nutrition
-• Consider appropriate self-care measures
-• Consult a healthcare professional for proper evaluation
+                st.write("**🩺 AI Health Assistant:**")
+                if condition and condition in MEDICAL_CONDITIONS:
+                    condition_info = MEDICAL_CONDITIONS[condition]
+                    st.write(f"""**{condition.title()} Management:**
 
-⚠️ This is general guidance. Please seek professional medical advice.""")
+**Immediate care:**
+• {condition_info['treatments'][0].title()}
+• {condition_info['treatments'][1].title()}
+
+**Additional measures:**
+• {condition_info['treatments'][2].title()}
+• Monitor for improvement
+
+**Seek help if:** {condition_info['when_to_seek_help']}""")
+                else:
+                    st.write(f"""**For your concern:** "{chat_input}"
+• Apply appropriate supportive care
+• Monitor symptom progression
+• Maintain hydration and rest
+• Seek professional medical advice if needed""")
+                
+                st.info("🩺 **Note:** This is general medical guidance. Consult a healthcare professional for proper evaluation.")
     else:
         st.error("AI model not available.")
 
