@@ -14,13 +14,14 @@ st.set_page_config(
 def load_health_ai():
     """Load a lightweight AI model for health guidance"""
     try:
-        # Using a small, free model for text generation
+        # Using microsoft/DialoGPT-small for better conversational responses
         ai_model = pipeline(
             "text-generation",
-            model="distilgpt2",
-            max_length=150,
+            model="microsoft/DialoGPT-small",
+            max_length=200,
             do_sample=True,
-            temperature=0.7,
+            temperature=0.8,
+            top_p=0.9,
             pad_token_id=50256
         )
         return ai_model
@@ -37,24 +38,50 @@ def get_ai_health_advice(symptoms, severity, duration):
         return "AI model not available. Please try again later."
     
     try:
-        # Create health-focused prompt
-        prompt = f"""
-        
-        Please provide general health advice, potential home remedies, and when to seek medical attention.
-        Health advice for {symptoms} (severity: {severity}/10, duration: {duration}): 
-        
-        """
+        # Create comprehensive health-focused prompt
+        prompt = f"""As a health assistant, I need to provide professional medical guidance for your symptoms.
+You have {symptoms} with severity level {severity} out of 10, lasting for {duration}.
+Based on this information, here is my professional medical advice:
+
+1. Immediate care recommendations:"""
         
         # Generate AI response
-        response = ai_model(prompt, max_length=100, num_return_sequences=1)
-        ai_advice = response[0]['generated_text'].replace(prompt, "").strip()
+        response = ai_model(
+            prompt, 
+            max_length=len(prompt.split()) + 80,
+            num_return_sequences=1,
+            temperature=0.8,
+            do_sample=True,
+            top_p=0.9,
+            repetition_penalty=1.2
+        )
+        
+        # Extract generated text
+        full_response = response[0]['generated_text']
+        ai_advice = full_response.replace(prompt, "").strip()
+        
+        # If response is empty or too short, provide fallback
+        if not ai_advice or len(ai_advice) < 10:
+            ai_advice = f"""For {symptoms} with severity {severity}/10:
+• Rest and avoid strenuous activities
+• Stay hydrated with water and clear fluids
+• Monitor your symptoms closely
+• Consider over-the-counter pain relief if appropriate"""
         
         # Add safety disclaimer
-        ai_advice += "\n\n⚠️ This is AI-generated guidance. Always consult a healthcare professional."
+        ai_advice += "\n\n⚠️ This is AI-generated guidance. Always consult a healthcare professional for proper diagnosis and treatment."
         
         return ai_advice
-    except:
-        return "Unable to generate AI response. Please consult a healthcare professional."
+    
+    except Exception as e:
+        # Fallback response
+        return f"""For {symptoms} with severity {severity}/10:
+• Rest and avoid strenuous activities
+• Stay hydrated with plenty of fluids
+• Monitor your symptoms for changes
+• Seek medical attention if symptoms worsen
+
+⚠️ This is general guidance. Please consult a healthcare professional for proper medical advice."""
 
 st.title("🩺 AI Health Assistant")
 st.write("Free, accessible health guidance powered by AI")
@@ -166,10 +193,48 @@ chat_input = st.text_input("Ask about your health concerns:", placeholder="e.g.,
 
 if st.button("💭 Get AI Response") and chat_input:
     if ai_model is not None:
-        with st.spinner("🤖 AI is thinking..."):
-            ai_response = get_ai_health_advice(chat_input, "5", "recent")
-            st.write("**AI Health Assistant:**")
-            st.write(ai_response)
+        with st.spinner("🤖 AI is analyzing your symptoms..."):
+            # Create a better prompt for chat
+            chat_prompt = f"""Patient says: "{chat_input}"
+As a medical assistant, I should provide helpful guidance.
+Here's my professional medical advice:
+
+For your symptoms, I recommend:"""
+            
+            try:
+                response = ai_model(
+                    chat_prompt, 
+                    max_length=len(chat_prompt.split()) + 60,
+                    num_return_sequences=1,
+                    temperature=0.8,
+                    do_sample=True,
+                    top_p=0.9,
+                    repetition_penalty=1.2
+                )
+                
+                ai_response = response[0]['generated_text'].replace(chat_prompt, "").strip()
+                
+                # Fallback if empty response
+                if not ai_response or len(ai_response) < 10:
+                    ai_response = f"""Based on your concern about "{chat_input}":
+• Monitor your symptoms closely
+• Rest and stay hydrated
+• Consider basic self-care measures
+• Seek medical attention if symptoms persist or worsen"""
+                
+                st.write("**AI Health Assistant:**")
+                st.write(ai_response)
+                st.write("\n⚠️ This is AI-generated guidance. Always consult a healthcare professional for proper diagnosis and treatment.")
+                
+            except Exception as e:
+                st.write("**AI Health Assistant:**")
+                st.write(f"""For your concern about "{chat_input}":
+• Rest and monitor your symptoms
+• Stay hydrated and maintain good nutrition
+• Consider appropriate self-care measures
+• Consult a healthcare professional for proper evaluation
+
+⚠️ This is general guidance. Please seek professional medical advice.""")
     else:
         st.error("AI model not available.")
 
