@@ -1,13 +1,135 @@
 import streamlit as st
 import time
+import torch
+from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline
+import re
+import warnings
+warnings.filterwarnings("ignore")
 
+# Page config
 st.set_page_config(
     page_title="AI Health Assistant", 
     layout="centered"
 )
 
+# Cache the model loading to avoid reloading on each run
+@st.cache_resource
+def load_health_model():
+    """Load a lightweight conversational model for health guidance"""
+    try:
+        # Using a small, free model suitable for conversational AI
+        model_name = "microsoft/DialoGPT-small"
+        tokenizer = AutoTokenizer.from_pretrained(model_name)
+        model = AutoModelForCausalLM.from_pretrained(model_name)
+        
+        # Add padding token if not present
+        if tokenizer.pad_token is None:
+            tokenizer.pad_token = tokenizer.eos_token
+            
+        return tokenizer, model
+    except Exception as e:
+        st.error(f"Error loading model: {e}")
+        return None, None
+
+# Alternative: Use a text generation pipeline (smaller and simpler)
+@st.cache_resource
+def load_text_generator():
+    """Load a lightweight text generation pipeline"""
+    try:
+        # Using a small GPT-2 model for text generation
+        generator = pipeline(
+            "text-generation",
+            model="distilgpt2",
+            tokenizer="distilgpt2",
+            max_length=200,
+            do_sample=True,
+            temperature=0.7,
+            pad_token_id=50256
+        )
+        return generator
+    except Exception as e:
+        st.error(f"Error loading text generator: {e}")
+        return None
+
+# Load the model
+text_generator = load_text_generator()
+
+def generate_llm_response(symptoms, severity, duration, medical_history="", medications=""):
+    """Generate AI response using the loaded model"""
+    if text_generator is None:
+        return "AI model not available. Please check your internet connection."
+    
+    try:
+        # Create a health-focused prompt
+        prompt = f"""Health Assistant: I understand you're experiencing {symptoms} with severity {severity}/10 for {duration}. """
+        
+        if medical_history:
+            prompt += f"Given your medical history of {medical_history}, "
+        
+        prompt += "Here's my guidance:\n\n"
+        
+        # Generate response
+        response = text_generator(
+            prompt,
+            max_length=150,
+            num_return_sequences=1,
+            temperature=0.7,
+            do_sample=True,
+            pad_token_id=50256
+        )
+        
+        # Extract and clean the generated text
+        generated_text = response[0]['generated_text']
+        ai_response = generated_text.replace(prompt, "").strip()
+        
+        # Add safety disclaimer
+        ai_response += "\n\n⚠️ This is AI-generated guidance. Always consult a healthcare professional for proper diagnosis and treatment."
+        
+        return ai_response
+        
+    except Exception as e:
+        return f"Error generating AI response: {str(e)}"
+
+# Enhanced symptom analysis with AI
+def analyze_symptoms_with_ai(main_symptom, other_symptoms, severity, duration, medical_history, medications, current_condition):
+    """Analyze symptoms using both rule-based and AI approaches"""
+    
+    # First, check for emergencies (rule-based)
+    if check_emergency_symptoms(main_symptom, other_symptoms, severity, current_condition):
+        return {
+            'type': 'emergency',
+            'advice': "⚠️ SEEK IMMEDIATE MEDICAL ATTENTION! Based on your symptoms, you should visit the nearest emergency room or call emergency services immediately."
+        }
+    
+    # Generate AI-powered advice
+    ai_advice = generate_llm_response(
+        main_symptom, 
+        severity, 
+        duration, 
+        medical_history, 
+        medications
+    )
+    
+    # Combine with rule-based advice
+    rule_based_advice = generate_health_advice(
+        main_symptom, other_symptoms, duration, severity, 
+        medical_history, medications, current_condition
+    )
+    
+    return {
+        'type': 'ai_enhanced',
+        'ai_advice': ai_advice,
+        'rule_based_advice': rule_based_advice['advice'] if rule_based_advice['type'] != 'emergency' else []
+    }
+
 st.title("🩺 AI Health Assistant")
-st.write("Free, accessible health guidance for underserved communities")
+st.write("Free, accessible health guidance powered by AI for underserved communities")
+
+# Model status indicator
+if text_generator is not None:
+    st.success("✅ AI Model loaded successfully")
+else:
+    st.error("❌ AI Model failed to load")
 
 # Disclaimer
 st.warning("⚠️ Important: This tool provides preliminary health guidance only. It is NOT a substitute for professional medical advice. Always consult with a qualified healthcare provider for serious symptoms.")
@@ -39,7 +161,7 @@ def check_emergency_symptoms(main_symptom, other_symptoms, severity, current_con
     
     return False
 
-# Generate health advice
+# Generate health advice (rule-based)
 def generate_health_advice(main_symptom, other_symptoms, duration, severity, medical_history, medications, current_condition):
     advice = []
     
@@ -117,13 +239,26 @@ with col3:
     if st.button("😰 Stress/Anxiety"):
         st.info("**Home Care:** Try deep breathing, exercise, or meditation. Consider professional help if persistent.")
 
+# AI Chat Interface
+st.subheader("💬 Chat with AI Health Assistant")
+chat_input = st.text_input("Ask me about your health concerns:", placeholder="e.g., I have a headache and feel tired")
+
+if st.button("💭 Get AI Response") and chat_input:
+    if text_generator is not None:
+        with st.spinner("🤖 AI is thinking..."):
+            ai_response = generate_llm_response(chat_input, 5, "recent", "", "")
+            st.write("**AI Health Assistant:**")
+            st.write(ai_response)
+    else:
+        st.error("AI model not available. Please try the detailed assessment below.")
+
 # Start detailed assessment button
-if st.button("🔍 Start Detailed Health Assessment", type="primary"):
+if st.button("🔍 Start Detailed AI Health Assessment", type="primary"):
     st.session_state.show_assessment = True
 
-# Detailed health assessment
+# Detailed health assessment with AI
 if st.session_state.show_assessment:
-    st.subheader("🔍 Detailed Health Assessment")
+    st.subheader("🤖 AI-Powered Health Assessment")
     
     with st.form("health_assessment_form"):
         # Main symptom
@@ -151,25 +286,47 @@ if st.session_state.show_assessment:
         current_condition = st.text_input("Describe your current condition in detail:", placeholder="Describe how you're feeling now")
         
         # Submit button
-        submitted = st.form_submit_button("Get Health Guidance")
+        submitted = st.form_submit_button("🤖 Get AI Health Guidance")
         
         if submitted:
             if main_symptom and duration != "Select":
-                with st.spinner("🤖 Analyzing your symptoms..."):
-                    advice_result = generate_health_advice(main_symptom, other_symptoms, duration, severity, medical_history, medications, current_condition)
-                    
-                    if advice_result['type'] == 'emergency':
-                        st.error(advice_result['advice'])
-                    else:
-                        st.success("🩺 Health Guidance:")
-                        for advice_item in advice_result['advice']:
-                            st.write(f"• {advice_item}")
+                with st.spinner("🤖 AI is analyzing your symptoms..."):
+                    if text_generator is not None:
+                        # Use AI-enhanced analysis
+                        advice_result = analyze_symptoms_with_ai(
+                            main_symptom, other_symptoms, duration, severity, 
+                            medical_history, medications, current_condition
+                        )
                         
-                        st.info("📞 When to seek professional help:")
-                        st.write("• If symptoms worsen or don't improve in 2-3 days")
-                        st.write("• If you develop new concerning symptoms")
-                        st.write("• If you're unsure about your condition")
-                        st.write("• If you have underlying health conditions")
+                        if advice_result['type'] == 'emergency':
+                            st.error(advice_result['advice'])
+                        else:
+                            st.success("🤖 AI Health Guidance:")
+                            st.write(advice_result['ai_advice'])
+                            
+                            if advice_result['rule_based_advice']:
+                                st.info("📋 Additional Recommendations:")
+                                for advice_item in advice_result['rule_based_advice']:
+                                    st.write(f"• {advice_item}")
+                    else:
+                        # Fallback to rule-based advice
+                        advice_result = generate_health_advice(
+                            main_symptom, other_symptoms, duration, severity, 
+                            medical_history, medications, current_condition
+                        )
+                        
+                        if advice_result['type'] == 'emergency':
+                            st.error(advice_result['advice'])
+                        else:
+                            st.success("🩺 Health Guidance:")
+                            for advice_item in advice_result['advice']:
+                                st.write(f"• {advice_item}")
+                    
+                    st.info("📞 When to seek professional help:")
+                    st.write("• If symptoms worsen or don't improve in 2-3 days")
+                    st.write("• If you develop new concerning symptoms")
+                    st.write("• If you're unsure about your condition")
+                    st.write("• If you have underlying health conditions")
                     
                     # Track usage
                     st.session_state.chat_history.append({
@@ -226,7 +383,7 @@ if st.button("View Statistics"):
 
 # Footer
 st.markdown("---")
-st.write("🌍 Supporting SDG Goal 3: Good Health and Well-being")
+st.write("🤖 Powered by AI • 🌍 Supporting SDG Goal 3: Good Health and Well-being")
 st.write("Available in multiple languages • Accessible in low-bandwidth areas • Free for all")
 st.write("For emergency situations, always call your local emergency number")
 

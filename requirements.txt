@@ -1,2 +1,6 @@
-streamlit
-requests
+streamlit>=1.28.0
+torch>=2.0.0
+transformers>=4.21.0
+tokenizers>=0.13.0
+accelerate>=0.20.0
+sentencepiece>=0.1.99
