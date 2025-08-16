@@ -1,0 +1,13 @@
+# Core
+python-dotenv>=1.0.1
+
+# LangChain
+langchain>=0.2.0
+langchain-community>=0.2.0
+langchain-groq>=0.1.3
+
+# LLM Client (Groq)
+groq>=0.8.0
+
+# Optional (if you plan a UI/app)
+streamlit>=1.36.0
